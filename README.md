@@ -86,4 +86,4 @@ Skrip ini disediakan "as-is" untuk tujuan pembelajaran dan eksperimen. Penggunaa
 
 ---
 
-Terima kasih telah menggunakan WeaR-Scripts. Jika Anda ingin, saya bisa lanjutkan dengan: hardening `fishit.lua`, menambahkan modul blatant opt-in, dan memperbarui `gui-fishit.lua` agar menyerupai Chloe-X (theme, persistence, profil). Beri tahu saya jika mau saya teruskan.
+Terima kasih telah menggunakan WeaR-Scripts. Jika Anda ingin, saya bisa lanjutkan dengan: hardening `fishit.lua`, menambahkan modul blatant opt-in, dan memperbarui `gui-fishit.lua` agar leboh nyaman (theme, persistence, profil). Beri tahu saya jika mau saya teruskan.
