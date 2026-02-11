@@ -1,6 +1,7 @@
 -- WeaR-Scripts
 -- Main Script
 
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,6 +10,15 @@ local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- Add safe wrappers and debounces for public methods
+local debounce = {}
+local function canRun(key, interval)
+    interval = interval or 0.05
+    if debounce[key] and tick() - debounce[key] < interval then return false end
+    debounce[key] = tick()
+    return true
+end
 
 -- Configuration
 local Config = {
@@ -22,15 +32,15 @@ local Config = {
 
 -- WalkSpeed
 local function setWalkSpeed(speed)
-    if Humanoid then
-        Humanoid.WalkSpeed = speed
+    if Humanoid and canRun("setspeed", 0.01) then
+        pcall(function() Humanoid.WalkSpeed = speed end)
     end
 end
 
 -- JumpPower
 local function setJumpPower(power)
-    if Humanoid then
-        Humanoid.JumpPower = power
+    if Humanoid and canRun("setjump", 0.01) then
+        pcall(function() Humanoid.JumpPower = power end)
     end
 end
 
@@ -68,8 +78,10 @@ local function startFly()
             direction = direction + (camera.CFrame.RightVector * flySpeed)
         end
         
-        bodyVelocity.Velocity = direction
-        bodyGyro.CFrame = camera.CFrame
+        pcall(function()
+            bodyVelocity.Velocity = direction
+            bodyGyro.CFrame = camera.CFrame
+        end)
     until not flying
 end
 
@@ -77,6 +89,7 @@ local function stopFly()
     flying = false
     if bodyVelocity then bodyVelocity:Destroy() end
     if bodyGyro then bodyGyro:Destroy() end
+    pcall(function() bodyVelocity = nil; bodyGyro = nil end)
 end
 
 -- Noclip
@@ -92,6 +105,7 @@ local function noclip()
             end
         end
     end)
+    pcall(function() noclipping = true end)
 end
 
 -- ESP
@@ -104,6 +118,7 @@ local function createESP()
             highlight.Parent = player.Character
         end
     end
+    pcall(function() Config.ESP = true end)
 end
 
 -- Infinite Jump

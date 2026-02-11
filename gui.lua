@@ -2,6 +2,7 @@
 -- Simple GUI Interface
 
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 
@@ -90,6 +91,37 @@ local flying = false
 local noclipping = false
 local infiniteJumpEnabled = false
 
+-- Config & persistence
+local Config = {
+    WalkSpeed = 16,
+    JumpPower = 50,
+    Fly = false,
+    Noclip = false,
+    ESP = false,
+    InfiniteJump = false,
+    Theme = "Neon"
+}
+local configFile = "WeaR-GUI-Config.json"
+local function saveConfig()
+    if writefile and HttpService then
+        pcall(function() writefile(configFile, HttpService:JSONEncode(Config)) end)
+    end
+end
+local function loadConfig()
+    if readfile and isfile and HttpService then
+        local ok, data = pcall(function() return readfile(configFile) end)
+        if ok and data then
+            local succ, parsed = pcall(function() return HttpService:JSONDecode(data) end)
+            if succ and type(parsed) == "table" then
+                for k,v in pairs(parsed) do
+                    Config[k] = v
+                end
+            end
+        end
+    end
+end
+pcall(loadConfig)
+
 local function setWalkSpeed(speed)
     if Humanoid then Humanoid.WalkSpeed = speed end
 end
@@ -140,6 +172,8 @@ local function stopFly()
     flying = false
     if bodyVelocity then bodyVelocity:Destroy() end
     if bodyGyro then bodyGyro:Destroy() end
+    Config.Fly = false
+    saveConfig()
 end
 
 local function toggleNoclip()
@@ -155,6 +189,8 @@ local function toggleNoclip()
             end
         end)
     end
+    Config.Noclip = noclipping
+    saveConfig()
 end
 
 local function toggleESP()
@@ -174,6 +210,8 @@ end
 
 local function toggleInfiniteJump()
     infiniteJumpEnabled = not infiniteJumpEnabled
+    Config.InfiniteJump = infiniteJumpEnabled
+    saveConfig()
 end
 
 UserInputService.JumpRequest:Connect(function()
@@ -213,6 +251,14 @@ createButton("Toggle Fly", 230, function()
     else
         WeaR.startFly()
     end
+end)
+-- apply saved values
+pcall(function()
+    setWalkSpeed(Config.WalkSpeed)
+    setJumpPower(Config.JumpPower)
+    if Config.Fly then WeaR.startFly() end
+    if Config.Noclip then WeaR.toggleNoclip() end
+    if Config.InfiniteJump then WeaR.toggleInfiniteJump() end
 end)
 
 createButton("Toggle Noclip", 275, function()

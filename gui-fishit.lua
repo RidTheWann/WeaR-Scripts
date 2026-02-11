@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
@@ -14,7 +15,7 @@ local Character = Player.Character or Player.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 
--- Config
+-- Config (UI-persisted)
 local Config = {
     AutoFish = false,
     AutoSell = false,
@@ -25,8 +26,36 @@ local Config = {
     ForceLegendary = false,
     AutoEquipBestRod = false,
     AutoBuyBait = false,
-    AntiAFK = false
+    AntiAFK = false,
+    EnableBlatant = false,
+    Theme = "Neon"
 }
+
+-- Persistence (executor-dependent)
+local configFile = "WeaR-FishIt-Config.json"
+local function saveConfig()
+    if writefile and HttpService then
+        pcall(function()
+            writefile(configFile, HttpService:JSONEncode(Config))
+        end)
+    end
+end
+
+local function loadConfig()
+    if readfile and isfile and HttpService then
+        local ok, data = pcall(function() return readfile(configFile) end)
+        if ok and data then
+            local succ, parsed = pcall(function() return HttpService:JSONDecode(data) end)
+            if succ and type(parsed) == "table" then
+                for k, v in pairs(parsed) do
+                    Config[k] = v
+                end
+            end
+        end
+    end
+end
+
+pcall(loadConfig)
 
 local flying = false
 local noclipping = false
@@ -148,6 +177,7 @@ local function autoFish()
             end
         end
     end)
+    saveConfig()
 end
 
 local function autoCatch()
@@ -170,6 +200,7 @@ local function autoCatch()
             end
         end
     end)
+    saveConfig()
 end
 
 local function autoShake()
@@ -192,6 +223,7 @@ local function autoShake()
             end
         end
     end)
+    saveConfig()
 end
 
 local function autoSell()
@@ -203,15 +235,18 @@ local function autoSell()
                 if v.Name == "Sell" or v.Name == "SellPad" or v.Name:find("Sell") then
                     if v:IsA("BasePart") and RootPart then
                         local oldPos = RootPart.CFrame
-                        RootPart.CFrame = v.CFrame
+                        pcall(function()
+                            RootPart.CFrame = v.CFrame + Vector3.new(0, 3, 0)
+                        end)
                         wait(0.5)
-                        RootPart.CFrame = oldPos
+                        pcall(function() RootPart.CFrame = oldPos end)
                         break
                     end
                 end
             end
         end
     end)
+    saveConfig()
 end
 
 local function teleportFishZone()
@@ -247,84 +282,101 @@ local function autoEquipBestRod()
             end
         end
     end)
+    saveConfig()
 end
 
 -- Blatant Functions
 local function instaCatch()
+    if not Config.EnableBlatant then
+        notify("Blatant Disabled", "Enable " .. "Blatant Module" .. " first to use Insta-Catch.", 3)
+        return
+    end
     Config.InstaCatch = not Config.InstaCatch
     spawn(function()
         while Config.InstaCatch do
-            wait(0.01)
+            wait(0.02)
             local rod = Character:FindFirstChildOfClass("Tool")
             if rod and rod:FindFirstChild("events") then
                 local events = rod.events
                 pcall(function() events.cast:FireServer(100, 1) end)
-                wait(0.05)
+                wait(0.04)
                 pcall(function() events.shake:FireServer(999, true) end)
-                wait(0.05)
+                wait(0.04)
                 pcall(function() events.reel:FireServer() end)
-                wait(0.05)
-                pcall(function() events.complete:FireServer() end)
+                wait(0.04)
+                pcall(function() if events:FindFirstChild("complete") then events.complete:FireServer() end end)
             end
         end
     end)
+    saveConfig()
 end
 
 local function autoFarmBlatant()
+    if not Config.EnableBlatant then
+        notify("Blatant Disabled", "Enable Blatant Module first to use Auto Farm Blatant.", 3)
+        return
+    end
     Config.AutoFarmBlatant = not Config.AutoFarmBlatant
     spawn(function()
+        local lastSell = 0
         while Config.AutoFarmBlatant do
-            wait(0.1)
+            wait(0.08)
             local rod = Character:FindFirstChildOfClass("Tool")
             if rod and rod:FindFirstChild("events") then
                 local events = rod.events
-                pcall(function() 
+                pcall(function()
                     events.cast:FireServer(100, 1)
-                    wait(0.05)
-                    events.shake:FireServer(999, true)
-                    wait(0.05)
-                    events.reel:FireServer()
-                    wait(0.05)
-                    events.complete:FireServer()
+                    wait(0.03)
+                    if events:FindFirstChild("shake") then events.shake:FireServer(999, true) end
+                    wait(0.03)
+                    if events:FindFirstChild("reel") then events.reel:FireServer() end
+                    wait(0.03)
+                    if events:FindFirstChild("complete") then events.complete:FireServer() end
                 end)
             end
-            -- Auto sell setiap 10 detik
-            if tick() % 10 < 0.1 then
+            if tick() - lastSell > 10 then
+                lastSell = tick()
                 for _, v in pairs(workspace:GetDescendants()) do
                     if v.Name:find("Sell") and v:IsA("BasePart") and RootPart then
                         local oldPos = RootPart.CFrame
-                        RootPart.CFrame = v.CFrame
+                        pcall(function() RootPart.CFrame = v.CFrame + Vector3.new(0,3,0) end)
                         wait(0.3)
-                        RootPart.CFrame = oldPos
+                        pcall(function() RootPart.CFrame = oldPos end)
                         break
                     end
                 end
             end
         end
     end)
+    saveConfig()
 end
 
 local function forceLegendary()
+    if not Config.EnableBlatant then
+        notify("Blatant Disabled", "Enable Blatant Module first to use Force Legendary.", 3)
+        return
+    end
     Config.ForceLegendary = not Config.ForceLegendary
     spawn(function()
         while Config.ForceLegendary do
-            wait(0.1)
+            wait(0.15)
             local rod = Character:FindFirstChildOfClass("Tool")
             if rod then
                 local values = rod:FindFirstChild("values")
                 if values then
                     local luck = values:FindFirstChild("luck") or values:FindFirstChild("Luck")
-                    if luck then
-                        luck.Value = 999999
+                    if luck and typeof(luck.Value) == "number" then
+                        pcall(function() luck.Value = 999999 end)
                     end
                     local cooldown = values:FindFirstChild("cooldown") or values:FindFirstChild("Cooldown")
-                    if cooldown then
-                        cooldown.Value = 0
+                    if cooldown and typeof(cooldown.Value) == "number" then
+                        pcall(function() cooldown.Value = 0 end)
                     end
                 end
             end
         end
     end)
+    saveConfig()
 end
 
 local function teleportRareSpots()
@@ -335,6 +387,21 @@ local function teleportRareSpots()
                 RootPart.CFrame = v.CFrame + Vector3.new(0, 5, 0)
                 return
             end
+        end
+    end
+end
+
+-- Blatant module helper: infinite cash
+local function infiniteCash()
+    if not Config.EnableBlatant then
+        notify("Blatant Disabled", "Enable Blatant Module to use Infinite Cash.", 3)
+        return
+    end
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if remotes then
+        local cashRemote = remotes:FindFirstChild("AddCash")
+        if cashRemote then
+            pcall(function() cashRemote:FireServer(999999) end)
         end
     end
 end
@@ -462,6 +529,21 @@ local function createButton(text, position, callback, color)
     return btn
 end
 
+-- Helper to set active state from code
+local function setButtonActive(btn, active, activeColor)
+    if not btn then return end
+    local stroke = btn:FindFirstChildOfClass("UIStroke")
+    if active then
+        btn.BackgroundColor3 = activeColor or Color3.fromRGB(0,200,100)
+        if stroke then stroke.Color = Color3.fromRGB(0,255,150) end
+        btn:SetAttribute("_active", true)
+    else
+        btn.BackgroundColor3 = btn:GetAttribute("_defaultColor") or Color3.fromRGB(35,35,35)
+        if stroke then stroke.Color = Color3.fromRGB(50,50,50) end
+        btn:SetAttribute("_active", false)
+    end
+end
+
 local function createInput(placeholder, position)
     local input = Instance.new("TextBox")
     input.Size = UDim2.new(0, 340, 0, 38)
@@ -519,35 +601,49 @@ end
 -- Universal Section
 createLabel("⚙️ UNIVERSAL FEATURES", 5)
 local speedInput = createInput("⚡ Speed (Default: 16)", 40)
-createButton("▶ Set Speed", 83, function()
+local setSpeedBtn = createButton("▶ Set Speed", 83, function()
     setWalkSpeed(tonumber(speedInput.Text) or 16)
 end)
 
 local jumpInput = createInput("👍 Jump Power (Default: 50)", 126)
-createButton("▶ Set Jump Power", 169, function()
+local setJumpBtn = createButton("▶ Set Jump Power", 169, function()
     setJumpPower(tonumber(jumpInput.Text) or 50)
 end)
 
-createButton("✈️ Toggle Fly (WASD)", 212, toggleFly)
-createButton("👻 Toggle Noclip", 255, toggleNoclip)
-createButton("👁️ Toggle ESP", 298, toggleESP)
-createButton("⬆️ Toggle Infinite Jump", 341, toggleInfiniteJump)
+local flyBtn = createButton("✈️ Toggle Fly (WASD)", 212, toggleFly)
+local noclipBtn = createButton("👻 Toggle Noclip", 255, toggleNoclip)
+local espBtn = createButton("👁️ Toggle ESP", 298, toggleESP)
+local infJumpBtn = createButton("⬆️ Toggle Infinite Jump", 341, toggleInfiniteJump)
 
 -- Fish It! Section
 createLabel("🎯 FISH IT! FEATURES", 384, Color3.fromRGB(100, 200, 255))
-createButton("🎣 Auto Fish", 419, autoFish)
-createButton("💨 Auto Shake", 462, autoShake)
-createButton("🐟 Auto Catch", 505, autoCatch)
-createButton("💰 Auto Sell", 548, autoSell)
-createButton("📍 Auto Equip Best Rod", 591, autoEquipBestRod)
-createButton("🎯 TP to Fish Zone", 634, teleportFishZone)
+local autoFishBtn = createButton("🎣 Auto Fish", 419, autoFish)
+local autoShakeBtn = createButton("💨 Auto Shake", 462, autoShake)
+local autoCatchBtn = createButton("🐟 Auto Catch", 505, autoCatch)
+local autoSellBtn = createButton("💰 Auto Sell", 548, autoSell)
+local autoEquipBtn = createButton("📍 Auto Equip Best Rod", 591, autoEquipBestRod)
+local tpFishZoneBtn = createButton("🎯 TP to Fish Zone", 634, teleportFishZone)
 
 -- Blatant Section
 createLabel("⚠️ BLATANT (HIGH RISK!)", 677, Color3.fromRGB(255, 100, 100))
-createButton("⚡ Insta-Catch (No Minigame)", 712, instaCatch, Color3.fromRGB(50, 20, 20))
-createButton("🚀 Auto Farm Blatant (Super Fast)", 755, autoFarmBlatant, Color3.fromRGB(50, 20, 20))
-createButton("🌟 Force Legendary Fish", 798, forceLegendary, Color3.fromRGB(50, 20, 20))
-createButton("🗺️ TP to Rare Spots", 841, teleportRareSpots, Color3.fromRGB(50, 20, 20))
+local blatantToggleBtn = createButton("Enable Blatant Module (Required)", 712, function()
+    Config.EnableBlatant = not Config.EnableBlatant
+    if Config.EnableBlatant then
+        notify("⚠️ Blatant Enabled", "Blatant features are HIGH RISK. Use a alt account.", 4)
+    else
+        notify("Blatant Disabled", "Blatant features turned off.", 2)
+    end
+    saveConfig()
+end, Color3.fromRGB(200, 40, 40))
+-- Mark toggle visually
+if Config.EnableBlatant then
+    blatantToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+end
+local instaCatchBtn = createButton("⚡ Insta-Catch (No Minigame)", 712, instaCatch, Color3.fromRGB(50, 20, 20))
+local autoFarmBlatantBtn = createButton("🚀 Auto Farm Blatant (Super Fast)", 755, autoFarmBlatant, Color3.fromRGB(50, 20, 20))
+local forceLegendBtn = createButton("🌟 Force Legendary Fish", 798, forceLegendary, Color3.fromRGB(50, 20, 20))
+local tpRareBtn = createButton("🗺️ TP to Rare Spots", 841, teleportRareSpots, Color3.fromRGB(50, 20, 20))
+local infiniteCashBtn = createButton("💸 Infinite Cash (Blatant)", 884, infiniteCash, Color3.fromRGB(50,20,20))
 
 -- Misc Section
 createLabel("🔧 MISC", 884, Color3.fromRGB(150, 150, 150))
@@ -555,7 +651,33 @@ local antiAFKBtn = createButton("🚫 Anti-AFK", 919, function()
     Config.AntiAFK = not Config.AntiAFK
 end)
 
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 970)
+-- Apply persisted toggles visually
+pcall(function()
+    -- Set visual states for all known buttons from loaded Config
+    local mapping = {
+        AutoFish = autoFishBtn,
+        AutoShake = autoShakeBtn,
+        AutoCatch = autoCatchBtn,
+        AutoSell = autoSellBtn,
+        AutoEquipBestRod = autoEquipBtn,
+        AutoFarmBlatant = autoFarmBlatantBtn,
+        InstaCatch = instaCatchBtn,
+        ForceLegendary = forceLegendBtn,
+        EnableBlatant = blatantToggleBtn,
+        AntiAFK = antiAFKBtn
+    }
+    for key, btn in pairs(mapping) do
+        if Config[key] and btn then
+            setButtonActive(btn, true)
+        end
+        if btn and not btn:GetAttribute("_defaultColor") then
+            btn:SetAttribute("_defaultColor", btn.BackgroundColor3)
+        end
+    end
+end)
+
+-- Themes, Profiles, Export/Import UI will extend the canvas size
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 1550)
 
 -- Draggable (Already handled by MainFrame.Draggable = true)
 
@@ -615,3 +737,198 @@ end
 
 -- Welcome notification
 notify("⚡ WeaR-Scripts", "Fish It! loaded successfully!", 3)
+
+-- Keybinds: Toggle GUI and quick feature keys
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        ScreenGui.Enabled = not ScreenGui.Enabled
+    elseif input.KeyCode == Enum.KeyCode.F then
+        autoFish()
+        setButtonActive(autoFishBtn, Config.AutoFish)
+        notify("AutoFish", (Config.AutoFish and "Enabled" or "Disabled"), 1.5)
+    elseif input.KeyCode == Enum.KeyCode.G then
+        autoSell()
+        setButtonActive(autoSellBtn, Config.AutoSell)
+        notify("AutoSell", (Config.AutoSell and "Enabled" or "Disabled"), 1.5)
+    end
+end)
+
+-- Themes & Profiles
+local themes = {
+    Neon = {
+        background = Color3.fromRGB(20,20,20),
+        accent = Color3.fromRGB(0,255,255),
+        title = Color3.fromRGB(0,255,255),
+        stroke = Color3.fromRGB(0,255,255)
+    },
+    Dark = {
+        background = Color3.fromRGB(12,12,12),
+        accent = Color3.fromRGB(200,200,200),
+        title = Color3.fromRGB(200,200,200),
+        stroke = Color3.fromRGB(80,80,80)
+    },
+    Ocean = {
+        background = Color3.fromRGB(8,30,50),
+        accent = Color3.fromRGB(60,180,200),
+        title = Color3.fromRGB(180,230,240),
+        stroke = Color3.fromRGB(60,180,200)
+    }
+}
+
+local function applyTheme(name)
+    local t = themes[name]
+    if not t then return end
+    MainFrame.BackgroundColor3 = t.background
+    UIStroke.Color = t.stroke
+    Title.TextColor3 = t.title
+    Version.TextColor3 = t.accent
+    Config.Theme = name
+    saveConfig()
+end
+
+local function applyConfig(newConfig)
+    if type(newConfig) ~= "table" then return end
+    for k, v in pairs(newConfig) do
+        if Config[k] ~= nil then
+            Config[k] = v
+        end
+    end
+    -- update visuals for known toggles
+    local mapping = {
+        AutoFish = autoFishBtn,
+        AutoShake = autoShakeBtn,
+        AutoCatch = autoCatchBtn,
+        AutoSell = autoSellBtn,
+        AutoEquipBestRod = autoEquipBtn,
+        AutoFarmBlatant = autoFarmBlatantBtn,
+        InstaCatch = instaCatchBtn,
+        ForceLegendary = forceLegendBtn,
+        EnableBlatant = blatantToggleBtn,
+        AntiAFK = antiAFKBtn
+    }
+    for key, btn in pairs(mapping) do
+        if btn then
+            setButtonActive(btn, Config[key])
+        end
+    end
+    if newConfig.Theme then applyTheme(newConfig.Theme) end
+    saveConfig()
+end
+
+-- Profile management (save/load/delete)
+local function saveProfileByName(name)
+    if not name or name:match("^%s*$") then
+        notify("Profile Error", "Please enter a valid profile name.", 2)
+        return
+    end
+    if writefile and HttpService then
+        local file = "WeaR-profile-" .. name .. ".json"
+        pcall(function()
+            writefile(file, HttpService:JSONEncode(Config))
+            notify("Profile Saved", "Saved profile: " .. name, 2)
+        end)
+    else
+        notify("Unavailable", "writefile not supported by your executor.", 3)
+    end
+end
+
+local function loadProfileByName(name)
+    if not name or name:match("^%s*$") then
+        notify("Profile Error", "Please enter a valid profile name.", 2)
+        return
+    end
+    if readfile and isfile and HttpService then
+        local file = "WeaR-profile-" .. name .. ".json"
+        if not isfile(file) then notify("Load Failed", "Profile not found: "..name, 2); return end
+        local ok, data = pcall(function() return readfile(file) end)
+        if ok and data then
+            local succ, parsed = pcall(function() return HttpService:JSONDecode(data) end)
+            if succ and type(parsed) == "table" then
+                applyConfig(parsed)
+                notify("Profile Loaded", "Loaded profile: "..name, 2)
+                return
+            end
+        end
+        notify("Load Failed", "Unable to parse profile.", 2)
+    else
+        notify("Unavailable", "readfile not supported by your executor.", 3)
+    end
+end
+
+local function deleteProfileByName(name)
+    if not name or name:match("^%s*$") then
+        notify("Profile Error", "Please enter a valid profile name.", 2)
+        return
+    end
+    if isfile and delfile then
+        local file = "WeaR-profile-" .. name .. ".json"
+        if not isfile(file) then notify("Delete Failed", "Profile not found: "..name, 2); return end
+        pcall(function() delfile(file) end)
+        notify("Profile Deleted", "Deleted: "..name, 2)
+    else
+        notify("Unavailable", "delfile not supported by your executor.", 3)
+    end
+end
+
+-- Export / Import
+local function exportConfigToFile()
+    if writefile and HttpService then
+        local ok = pcall(function() writefile("WeaR-export-config.json", HttpService:JSONEncode(Config)) end)
+        if ok then notify("Exported", "Config exported to WeaR-export-config.json", 2)
+        else notify("Export Failed", "Unable to write file.", 2) end
+    else
+        notify("Unavailable", "writefile not supported.", 3)
+    end
+end
+
+local function exportConfigToClipboard()
+    if setclipboard and HttpService then
+        pcall(function() setclipboard(HttpService:JSONEncode(Config)) end)
+        notify("Exported", "Config copied to clipboard.", 2)
+    else
+        notify("Unavailable", "setclipboard not supported.", 3)
+    end
+end
+
+local function importConfigFromText(jsonText)
+    if not jsonText or jsonText:match("^%s*$") then notify("Import Error", "Paste JSON into the import box.", 2); return end
+    if HttpService then
+        local succ, parsed = pcall(function() return HttpService:JSONDecode(jsonText) end)
+        if succ and type(parsed) == "table" then
+            applyConfig(parsed)
+            notify("Imported", "Config imported from text.", 2)
+            return
+        end
+    end
+    notify("Import Failed", "Invalid JSON.", 2)
+end
+
+local function importConfigFromFile()
+    if readfile and isfile and HttpService then
+        local file = "WeaR-export-config.json"
+        if not isfile(file) then notify("Import Failed", "File not found: "..file, 2); return end
+        local ok, data = pcall(function() return readfile(file) end)
+        if ok and data then importConfigFromText(data); return end
+        notify("Import Failed", "Unable to read file.", 2)
+    else
+        notify("Unavailable", "readfile not supported.", 3)
+    end
+end
+
+-- UI: Themes & Profiles
+createLabel("🎨 THEMES & PROFILES", 952, Color3.fromRGB(180,180,255))
+createButton("Theme: Neon", 995, function() applyTheme("Neon") end)
+createButton("Theme: Dark", 1038, function() applyTheme("Dark") end)
+createButton("Theme: Ocean", 1081, function() applyTheme("Ocean") end)
+
+local profileInput = createInput("Profile name (e.g. myprofile)", 1124)
+createButton("Save Profile", 1167, function() saveProfileByName(profileInput.Text) end)
+createButton("Load Profile", 1210, function() loadProfileByName(profileInput.Text) end)
+createButton("Delete Profile", 1253, function() deleteProfileByName(profileInput.Text) end)
+
+createButton("Export Config to File", 1296, exportConfigToFile)
+createButton("Export Config to Clipboard", 1339, exportConfigToClipboard)
+local importBox = createInput("Paste JSON here to import", 1382)
+createButton("Import from Text", 1425, function() importConfigFromText(importBox.Text) end)
+createButton("Import from File (WeaR-export-config.json)", 1468, importConfigFromFile)
